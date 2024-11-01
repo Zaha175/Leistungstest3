@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reaktionstest mit zwei Reizen</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+
+        #test-container {
+            position: relative;
+            width: 600px;
+            height: 400px;
+            background-color: white;
+            border: 2px solid #333;
+        }
+
+        #arrow {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2em;
+            visibility: hidden;
+        }
+
+        #cross {
+            position: absolute;
+            font-size: 2em;
+            visibility: hidden;
+        }
+
+        #message {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            width: 80%;
+        }
+
+        #stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+        }
+
+        .button {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <div id="stats"></div>
+        <div id="arrow">→</div>
+        <div id="cross">×</div>
+        <div id="message"></div>
+        <button id="start-button" class="button" onclick="startTest()">Start</button>
+    </div>
+
+    <script>
+        const PRACTICE_TRIALS = 5;
+        const TEST_TRIALS = 10;
+        const MAX_ERRORS = 2;
+
+        let currentPhase = 'instruction';
+        let trialCount = 0;
+        let currentStep = 1; // 1: Pfeil, 2: Kreuz
+        let reactionTimes = [];
+        let errors = 0;
+        let startTime = 0;
+        let currentArrowDirection = '';
+        let currentCrossPosition = '';
+        let expectedResponses = [];
+        let receivedResponses = [];
+
+        const directions = ['up', 'down', 'left', 'right'];
+        const positions = ['up', 'down', 'left', 'right'];
+        const arrowSymbols = {
+            'up': '↑',
+            'down': '↓',
+            'left': '←',
+            'right': '→'
+        };
+
+        function startTest() {
+            document.getElementById('start-button').style.display = 'none';
+            document.getElementById('message').textContent = 
+                "Reagieren Sie zuerst auf die Pfeilrichtung, dann auf die Position des Kreuzes";
+            currentPhase = 'practice';
+            trialCount = 0;
+            showNextStimulus();
+        }
+
+        function showNextStimulus() {
+            currentStep = 1;
+            receivedResponses = [];
+            
+            // Zufällige Richtung und Position wählen
+            currentArrowDirection = directions[Math.floor(Math.random() * directions.length)];
+            currentCrossPosition = positions[Math.floor(Math.random() * positions.length)];
+            
+            // Pfeil setzen
+            const arrow = document.getElementById('arrow');
+            arrow.textContent = arrowSymbols[currentArrowDirection];
+            arrow.style.visibility = 'visible';
+
+            // Kreuz positionieren
+            const cross = document.getElementById('cross');
+            cross.style.visibility = 'visible';
+            
+            switch(currentCrossPosition) {
+                case 'up':
+                    cross.style.top = '20px';
+                    cross.style.left = '50%';
+                    break;
+                case 'down':
+                    cross.style.top = '380px';
+                    cross.style.left = '50%';
+                    break;
+                case 'left':
+                    cross.style.left = '20px';
+                    cross.style.top = '50%';
+                    break;
+                case 'right':
+                    cross.style.left = '580px';
+                    cross.style.top = '50%';
+                    break;
+            }
+
+            expectedResponses = [currentArrowDirection, currentCrossPosition];
+            startTime = Date.now();
+        }
+
+        function handleResponse(response) {
+            if (receivedResponses.length >= 2) return;
+
+            receivedResponses.push(response);
+            
+            if (receivedResponses.length === 1) {
+                // Erste Antwort (Pfeil)
+                if (response !== expectedResponses[0]) {
+                    errors++;
+                    document.getElementById('message').textContent = "Falsche Richtung!";
+                }
+                currentStep = 2;
+            } else if (receivedResponses.length === 2) {
+                // Zweite Antwort (Kreuz)
+                const reactionTime = Date.now() - startTime;
+                reactionTimes.push(reactionTime);
+
+                if (response !== expectedResponses[1]) {
+                    errors++;
+                    document.getElementById('message').textContent = "Falsche Position!";
+                }
+
+                document.getElementById('arrow').style.visibility = 'hidden';
+                document.getElementById('cross').style.visibility = 'hidden';
+
+                trialCount++;
+                evaluateTrial(reactionTime);
+            }
+        }
+
+        function evaluateTrial(reactionTime) {
+            if (currentPhase === 'practice') {
+                if (trialCount >= PRACTICE_TRIALS) {
+                    if (errors > MAX_ERRORS) {
+                        document.getElementById('message').textContent = 
+                            "Zu viele Fehler. Übungsphase wird wiederholt.";
+                        setTimeout(() => {
+                            trialCount = 0;
+                            errors = 0;
+                            reactionTimes = [];
+                            showNextStimulus();
+                        }, 2000);
+                    } else {
+                        currentPhase = 'test';
+                        trialCount = 0;
+                        errors = 0;
+                        reactionTimes = [];
+                        document.getElementById('message').textContent = 
+                            "Übungsphase beendet. Testphase beginnt!";
+                        setTimeout(showNextStimulus, 2000);
+                    }
+                } else {
+                    setTimeout(showNextStimulus, 1000);
+                }
+            } else if (currentPhase === 'test') {
+                if (trialCount >= TEST_TRIALS) {
+                    endTest();
+                } else {
+                    setTimeout(showNextStimulus, 1000);
+                }
+            }
+        }
+
+        function endTest() {
+            const averageTime = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+            let message = `Test beendet!\nDurchschnittliche Reaktionszeit: ${averageTime.toFixed(0)}ms\n`;
+            
+            if (errors <= MAX_ERRORS) {
+                const percentile = calculatePercentile(averageTime);
+                message += `Prozentrang: ${percentile}`;
+            } else {
+                message += "Zu viele Fehler für eine Bewertung.";
+            }
+
+            document.getElementById('message').textContent = message;
+            document.getElementById('start-button').style.display = 'block';
+        }
+
+        function calculatePercentile(averageTime) {
+            // Vereinfachte Perzentilberechnung
+            if (averageTime < 800) return 95;
+            if (averageTime < 1000) return 75;
+            if (averageTime < 1200) return 50;
+            if (averageTime < 1400) return 25;
+            return 10;
+        }
+
+        // Tastatursteuerung
+        document.addEventListener('keydown', (event) => {
+            switch(event.key) {
+                case 'ArrowUp':
+                    handleResponse('up');
+                    break;
+                case 'ArrowDown':
+                    handleResponse('down');
+                    break;
+                case 'ArrowLeft':
+                    handleResponse('left');
+                    break;
+                case 'ArrowRight':
+                    handleResponse('right');
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>
